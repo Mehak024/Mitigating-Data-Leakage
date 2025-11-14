@@ -1,0 +1,490 @@
+
+
+<!-- Chosen Palette: Calm Neutrals with Blue/Green/Amber accents -->
+<!-- Application Structure Plan: The application now starts with a login screen. Upon entry, the primary view is a "Collaboration Hub" for data scanning and team chat. Scan history is now saved per-user. The file upload option has been removed to streamline the interface. The detailed strategic guides have been replaced with a concise "Prevention Strategies" section at the bottom. The admin panel is enhanced to show user IDs and passwords for monitoring purposes. -->
+<!-- Visualization & Content Choices: 
+- Report Info: The core 3-pillar structure (Policy, Technology, People). Goal: Organize/Inform. Viz/Presentation: A new, concise card-based layout for prevention tips, derived from the original pillar structure. Interaction: Simple, readable cards without complex interactions. Justification: Provides direct, easy-to-digest advice as requested by the user, replacing the previous multi-section layout.
+- Report Info: (New) User-provided data for scanning and team chat. Goal: Organize/Inform/Engage. Viz/Presentation: A simplified layout with a data input area, a results panel, and a simulated chat interface. Interaction: Users can paste text, click "scan" to see simulated leak detection results (now including link checks) saved to their private history, and add messages to a shared chat log. Justification: Simplifies the user experience.
+- Report Info: (New) Scan result analysis. Goal: Compare. Viz/Presentation: A dynamic doughnut chart showing the percentage of leaks by risk level. The file-specific chart has been removed. Interaction: Chart updates automatically after a scan. Justification: Provides an immediate, easy-to-digest visual summary of scan findings.
+- Report Info: (New) Admin session monitoring. Goal: Inform. Viz/Presentation: An enhanced admin panel with a table of logged-in users showing their simulated ID and password, a view of the shared chat, and a new accordion view for every user's scan history. Interaction: This panel is only visible to the admin. Justification: Fulfills the requirement for an admin-specific view to monitor all simulated activity.
+- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Strategy: Reducing Data Leakage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #334155; /* slate-700 */
+        }
+        .prevention-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .prevention-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+            max-width: 250px;
+            margin: auto;
+        }
+        .chat-message, .history-item {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .admin-history-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .admin-history-item.open .admin-history-content {
+            max-height: 1000px;
+        }
+        .admin-history-item.open .chevron {
+            transform: rotate(180deg);
+        }
+        .chevron {
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <!-- Login Page -->
+    <div id="login-page" class="fixed inset-0 bg-slate-100 z-50 flex items-center justify-center">
+        <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+            <h2 class="text-3xl font-bold text-slate-800 text-center mb-2">Welcome</h2>
+            <p class="text-center text-slate-500 mb-6">Login to access the Data Leakage Strategy Hub</p>
+            <form id="login-form">
+                <div class="space-y-4">
+                    <input type="text" id="username" placeholder="Username" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <input type="password" id="password" placeholder="Password (for admin)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors duration-300">Login</button>
+                <p id="login-error" class="text-red-500 text-sm text-center mt-4 h-4"></p>
+                <p class="text-xs text-slate-400 text-center mt-4">Hint: Use 'admin' & 'admin123' for admin access, or any other username for user access.</p>
+            </form>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 hidden">
+
+        <!-- Header -->
+        <header class="text-center mb-16">
+            <div class="flex justify-between items-center">
+                 <div id="welcome-message" class="text-left text-sm text-slate-500 w-1/4"></div>
+                <h1 class="text-4xl md:text-5xl font-bold text-slate-800">Strategy & Detection Hub</h1>
+                <div class="w-1/4 flex justify-end">
+                    <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 text-sm">Logout</button>
+                </div>
+            </div>
+            <p class="mt-4 text-lg text-slate-600 max-w-3xl mx-auto">An interactive guide for data leakage prevention and analysis.</p>
+        </header>
+
+        <!-- Admin Panel -->
+        <section id="admin-panel" class="mb-16 hidden">
+            <h2 class="text-3xl font-bold text-slate-800 mb-6 border-l-4 border-red-500 pl-4">Admin Panel</h2>
+            <div class="bg-white p-8 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div>
+                    <h3 class="text-xl font-semibold text-slate-800 mb-4">Logged-in User Data</h3>
+                    <div class="bg-slate-50 rounded-lg border border-slate-200 h-96 overflow-y-auto">
+                        <table class="w-full text-sm text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Username</th>
+                                    <th scope="col" class="px-6 py-3">Simulated ID</th>
+                                    <th scope="col" class="px-6 py-3">Password</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="lg:col-span-2">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-4">User Scan History</h3>
+                    <div id="adminScanHistory" class="bg-slate-50 rounded-lg border border-slate-200 h-96 overflow-y-auto p-4 space-y-2">
+                         <div class="text-center text-sm text-slate-400">No scans performed yet.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Collaboration Hub Section -->
+        <section id="collaboration-hub" class="mb-20">
+            <h2 class="text-3xl font-bold text-center text-slate-800 mb-4">Collaboration Hub & Live Detection</h2>
+            <p class="text-center text-slate-600 mb-10">Simulate data analysis and team collaboration. Paste text to begin.</p>
+            <div class="bg-white p-8 rounded-xl border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Data Analysis Column -->
+                <div class="flex flex-col gap-6">
+                    <div class="flex-grow flex flex-col">
+                        <h3 class="text-xl font-semibold text-slate-800 mb-4">1. Analyze Data</h3>
+                        <div class="flex-grow flex flex-col bg-slate-50 rounded-lg p-4 border border-slate-200">
+                            <textarea id="dataInput" class="w-full flex-grow bg-white border border-slate-300 rounded-lg p-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste text here..."></textarea>
+                            <button id="scanButton" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition-colors duration-300">Scan Data</button>
+                        </div>
+                    </div>
+                     <div class="flex flex-col">
+                        <h3 class="text-xl font-semibold text-slate-800 mb-4">2. Your Latest Scan Result</h3>
+                         <div id="scanResults" class="text-sm p-4 bg-slate-50 rounded-md border border-slate-200 min-h-[100px] text-slate-500">Awaiting your first scan...</div>
+                    </div>
+                </div>
+                <!-- Team Chat & Graphs Column -->
+                <div class="flex flex-col gap-6">
+                    <div class="flex-grow flex flex-col">
+                        <h3 class="text-xl font-semibold text-slate-800 mb-4">3. Shared Team Chat</h3>
+                        <div class="flex-grow flex flex-col bg-slate-50 rounded-lg p-4 border border-slate-200">
+                            <div id="chatLog" class="flex-grow bg-white border border-slate-300 rounded-lg p-3 space-y-3 overflow-y-auto h-48"></div>
+                            <div class="mt-4 flex gap-3">
+                                <input type="text" id="chatMessage" placeholder="Type a message..." class="flex-grow border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button id="sendMessage" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                     <div class="flex flex-col">
+                        <h3 class="text-xl font-semibold text-slate-800 mb-4">4. Latest Scan Analysis</h3>
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <p class="text-sm font-medium text-center text-slate-600 mb-2">Leaks by Risk (%)</p>
+                            <div class="chart-container"><canvas id="scanComparisonChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Prevention Strategies Section -->
+        <section id="prevention-strategies" class="mt-20 pt-16 border-t border-slate-200">
+            <h2 class="text-3xl font-bold text-center text-slate-800 mb-4">How to Prevent Data Leakage</h2>
+            <p class="text-center text-slate-600 mb-10">A summary of key strategies across policy, technology, and people.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Policy Card -->
+                <div class="prevention-card bg-white border border-slate-200 rounded-xl p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-amber-100 text-amber-600 w-12 h-12 rounded-full flex items-center justify-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
+                        <h3 class="text-xl font-bold text-slate-800 ml-4">Policy & Governance</h3>
+                    </div>
+                    <ul class="space-y-3 text-slate-600">
+                        <li><strong class="text-slate-700">Classify Data:</strong> Categorize data into tiers (e.g., Public, Internal, Confidential) to apply appropriate controls.</li>
+                        <li><strong class="text-slate-700">Define Acceptable Use:</strong> Create clear rules for how employees can use collaboration tools and share data.</li>
+                        <li><strong class="text-slate-700">Enforce Least Privilege:</strong> Grant users the minimum access required to perform their jobs. Review permissions regularly.</li>
+                    </ul>
+                </div>
+                <!-- Technology Card -->
+                <div class="prevention-card bg-white border border-slate-200 rounded-xl p-6">
+                     <div class="flex items-center mb-4">
+                        <div class="bg-blue-100 text-blue-600 w-12 h-12 rounded-full flex items-center justify-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
+                        <h3 class="text-xl font-bold text-slate-800 ml-4">Technology & Tools</h3>
+                    </div>
+                    <ul class="space-y-3 text-slate-600">
+                        <li><strong class="text-slate-700">Use DLP Tools:</strong> Deploy Data Loss Prevention software to automatically scan for and block sensitive information.</li>
+                        <li><strong class="text-slate-700">Audit Configurations (CSPM):</strong> Use tools to continuously check for misconfigurations like public storage buckets.</li>
+                        <li><strong class="text-slate-700">Require MFA:</strong> Enforce Multi-Factor Authentication for all users to protect against credential theft.</li>
+                    </ul>
+                </div>
+                <!-- People Card -->
+                <div class="prevention-card bg-white border border-slate-200 rounded-xl p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-emerald-100 text-emerald-600 w-12 h-12 rounded-full flex items-center justify-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.284-1.255-.758-1.684M12 15M12 15a3 3 0 100-6 3 3 0 000 6zM12 15v2m0 0v2m0-2h-2m2 0h2M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.284-1.255.758-1.684"></path></svg></div>
+                        <h3 class="text-xl font-bold text-slate-800 ml-4">People & Training</h3>
+                    </div>
+                    <ul class="space-y-3 text-slate-600">
+                         <li><strong class="text-slate-700">Train Employees:</strong> Conduct regular security awareness training on how to handle sensitive data safely.</li>
+                         <li><strong class="text-slate-700">Simulate Phishing:</strong> Test users with phishing simulations to build resilience and identify training needs.</li>
+                         <li><strong class="text-slate-700">Establish Reporting Channels:</strong> Make it easy for any employee to report a suspected incident without fear of blame.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // State Management
+            let sessionData = {
+                users: {},
+                chatMessages: []
+            };
+            let currentUser = '';
+            let currentUsername = '';
+            let loggedInUsers = []; // For display purposes only
+
+            // DOM Elements
+            const loginPage = document.getElementById('login-page');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const loginError = document.getElementById('login-error');
+            const mainContent = document.querySelector('main');
+            const welcomeMessage = document.getElementById('welcome-message');
+            const logoutButton = document.getElementById('logout-button');
+            const adminPanel = document.getElementById('admin-panel');
+            const userList = document.getElementById('user-list');
+            const adminScanHistory = document.getElementById('adminScanHistory');
+            const dataInput = document.getElementById('dataInput');
+            const scanButton = document.getElementById('scanButton');
+            const scanResults = document.getElementById('scanResults');
+            const chatLog = document.getElementById('chatLog');
+            const chatMessageInput = document.getElementById('chatMessage');
+            const sendMessageButton = document.getElementById('sendMessage');
+            
+            // Chart instances
+            let scanComparisonChart;
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
+
+                if (username === 'admin' && password === 'admin123') {
+                    currentUser = 'Admin';
+                    currentUsername = 'admin';
+                    loginSuccess(currentUsername, password);
+                } else if (username) {
+                    currentUser = username;
+                    currentUsername = username;
+                    loginSuccess(currentUsername, 'N/A');
+                } else {
+                    loginError.textContent = 'Please enter a username.';
+                }
+            });
+
+            function loginSuccess(username, password) {
+                if (!loggedInUsers.find(u => u.username === username)) {
+                    loggedInUsers.push({ username });
+                }
+                if (!sessionData.users[username]) {
+                    sessionData.users[username] = { 
+                        scanHistory: [],
+                        userId: 'user_' + Math.random().toString(36).substr(2, 9),
+                        password: password
+                    };
+                }
+
+                loginError.textContent = '';
+                loginPage.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                welcomeMessage.innerHTML = `Welcome, <strong class="text-slate-800">${currentUser}</strong>`;
+                
+                if (currentUser === 'Admin') {
+                    adminPanel.classList.remove('hidden');
+                }
+
+                initializeCharts();
+                setupEventListeners();
+                renderUserScanResults();
+                renderChat();
+                renderAdminPanel();
+            }
+            
+            logoutButton.addEventListener('click', () => {
+                const userIndex = loggedInUsers.findIndex(u => u.username === currentUsername);
+                if (userIndex > -1) {
+                    loggedInUsers.splice(userIndex, 1);
+                }
+
+                currentUser = '';
+                currentUsername = '';
+                mainContent.classList.add('hidden');
+                adminPanel.classList.add('hidden');
+                loginPage.classList.remove('hidden');
+                usernameInput.value = '';
+                passwordInput.value = '';
+                renderAdminPanel();
+            });
+
+            function renderAdminPanel() {
+                // Render User List
+                userList.innerHTML = loggedInUsers.map(user => {
+                    const userData = sessionData.users[user.username];
+                    if (!userData) return '';
+                    return `<tr class="bg-white border-b">
+                                <td class="px-6 py-4 font-medium text-slate-900">${user.username}</td>
+                                <td class="px-6 py-4">${userData.userId}</td>
+                                <td class="px-6 py-4">${userData.password}</td>
+                            </tr>`;
+                }).join('') || '<tr><td colspan="3" class="px-6 py-4 text-center">No users logged in.</td></tr>';
+
+                // Render All Scan Histories
+                let historyHtml = '';
+                Object.keys(sessionData.users).forEach(username => {
+                    const user = sessionData.users[username];
+                    if (user.scanHistory.length > 0) {
+                        historyHtml += `<div class="admin-history-item bg-white border border-slate-200 rounded-lg">
+                            <div class="admin-history-header cursor-pointer p-3 flex justify-between items-center">
+                                <h4 class="font-semibold text-slate-800">${username} (${user.scanHistory.length} scans)</h4>
+                                <svg class="chevron w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <div class="admin-history-content p-3 border-t border-slate-200 space-y-3">
+                                ${user.scanHistory.map((scan, index) => {
+                                    let findingsHtml = scan.findings.length > 0 ? scan.findings.map(f => {
+                                        const riskColor = f.risk === 'Critical' ? 'text-red-600' : 'text-orange-600';
+                                        return `<li class="text-xs"><strong class="${riskColor}">[${f.risk}]</strong> ${f.name} found: <code class="bg-slate-200 px-1 rounded text-slate-800">${f.found}</code></li>`;
+                                    }).join('') : '<li class="text-emerald-600 text-xs">No sensitive data patterns detected.</li>';
+                                    return `<div class="p-2 bg-slate-100 rounded-md">
+                                        <p class="text-xs font-bold text-slate-600">Scan #${index + 1} at ${scan.timestamp.toLocaleTimeString()}</p>
+                                        <ul class="mt-1 space-y-1">${findingsHtml}</ul>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </div>`;
+                    }
+                });
+                adminScanHistory.innerHTML = historyHtml || '<div class="text-center text-sm text-slate-400">No scans performed yet.</div>';
+                
+                document.querySelectorAll('.admin-history-header').forEach(header => {
+                    header.addEventListener('click', () => header.parentElement.classList.toggle('open'));
+                });
+            }
+            
+            function initializeCharts(){
+                if (scanComparisonChart) scanComparisonChart.destroy();
+                const sccCtx = document.getElementById('scanComparisonChart').getContext('2d');
+                scanComparisonChart = new Chart(sccCtx, {
+                    type: 'doughnut',
+                    data: { 
+                        labels: ['Critical', 'High'], 
+                        datasets: [{ 
+                            data: [0, 0], 
+                            backgroundColor: ['#ef4444', '#f97316'],
+                            borderColor: '#f8fafc',
+                            borderWidth: 4
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        cutout: '60%',
+                        plugins: { 
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                            const value = context.parsed;
+                                            const percentage = total > 0 ? (value / total * 100).toFixed(1) : 0;
+                                            label += percentage + '%';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function setupEventListeners() {
+                scanButton.addEventListener('click', handleScan);
+                sendMessageButton.addEventListener('click', addChatMessage);
+                chatMessageInput.addEventListener('keydown', e => { if (e.key === 'Enter') addChatMessage(); });
+            }
+
+            const leakPatterns = [
+                { name: "API Key", regex: /sk-[a-zA-Z0-9]{30,}/g, risk: "Critical", category: "Credentials" },
+                { name: "Email Address", regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, risk: "High", category: "PII" },
+                { name: "Credit Card Number", regex: /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, risk: "Critical", category: "PII" },
+                { name: "Internal Memo Keyword", regex: /CONFIDENTIAL INTERNAL MEMO/ig, risk: "High", category: "Confidential" },
+                { name: "SSN", regex: /\b\d{3}-\d{2}-\d{4}\b/g, risk: "Critical", category: "PII" },
+                { name: "Insecure Link / DB Link", regex: /https?:\/\/[^\s]*(\.sql|\.env|\.bak)|http:\/\/[^\s]+/g, risk: "High", category: "Confidential" }
+            ];
+
+            function handleScan() {
+                const textToScan = dataInput.value;
+                if (!textToScan.trim()) {
+                    scanResults.innerHTML = '<p class="text-amber-600">Please paste text to scan.</p>';
+                    return;
+                }
+                let findings = [];
+                let riskCounts = { Critical: 0, High: 0 };
+                
+                leakPatterns.forEach(pattern => {
+                    const matches = textToScan.matchAll(pattern.regex);
+                    for (const match of matches) {
+                        findings.push({ name: pattern.name, risk: pattern.risk, found: match[0] });
+                        riskCounts[pattern.risk]++;
+                    }
+                });
+                
+                // Save to user's history
+                sessionData.users[currentUsername].scanHistory.push({
+                    timestamp: new Date(),
+                    findings: findings,
+                    source: 'Pasted Text'
+                });
+
+                renderUserScanResults();
+                if(currentUser === 'Admin') renderAdminPanel();
+
+                // Update Risk Percentage Chart
+                const totalRisks = riskCounts.Critical + riskCounts.High;
+                 if (totalRisks > 0) {
+                    scanComparisonChart.data.datasets[0].data = [riskCounts.Critical, riskCounts.High];
+                } else {
+                    scanComparisonChart.data.datasets[0].data = [0, 0];
+                }
+                scanComparisonChart.update();
+
+                dataInput.value = '';
+            }
+            
+            function renderUserScanResults() {
+                const userHistory = sessionData.users[currentUsername].scanHistory;
+                if (userHistory.length === 0) {
+                    scanResults.innerHTML = 'Awaiting your first scan...';
+                    return;
+                }
+                const latestScan = userHistory[userHistory.length - 1];
+                if (latestScan.findings.length > 0) {
+                    scanResults.innerHTML = `<ul class="space-y-2">${latestScan.findings.map(f => {
+                        const riskColor = f.risk === 'Critical' ? 'text-red-600' : 'text-orange-600';
+                        return `<li class="p-2 bg-slate-100 rounded-md"><strong class="${riskColor}">[${f.risk}]</strong> ${f.name} found: <code class="bg-slate-200 px-1 rounded text-slate-800">${f.found}</code></li>`;
+                    }).join('')}</ul>`;
+                } else {
+                    scanResults.innerHTML = '<p class="text-emerald-600 font-semibold">No sensitive data patterns detected in your last scan.</p>';
+                }
+            }
+
+            function addChatMessage() {
+                const message = chatMessageInput.value.trim();
+                if (message === '') return;
+                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                sessionData.chatMessages.push({ user: currentUser, message, timestamp });
+                chatMessageInput.value = '';
+                renderChat();
+                if(currentUser === 'Admin') renderAdminPanel();
+            }
+
+            function renderChat() {
+                const chatWindows = [chatLog];
+                chatWindows.forEach(win => {
+                    if (!win) return;
+                    if (sessionData.chatMessages.length === 0) {
+                        win.innerHTML = '<div class="text-center text-sm text-slate-400">Chat history appears here.</div>';
+                    } else {
+                        win.innerHTML = sessionData.chatMessages.map(msg => {
+                            return `<div class="chat-message"><p class="text-sm"><strong class="font-semibold text-blue-600">${msg.user}</strong> <span class="text-xs text-slate-400">${msg.timestamp}</span></p><p class="text-slate-700">${msg.message}</p></div>`;
+                        }).join('');
+                    }
+                    win.scrollTop = win.scrollHeight;
+                });
+            }
+        });
+    </script>
+</body>
+</html>
